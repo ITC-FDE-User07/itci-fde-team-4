@@ -1,0 +1,7 @@
+id,date,severity,summary,impact,root_cause_noted
+INC-198,2026-08-14,SEV3,Paper request slips lost at Udaipur housekeeping desk,11 guest requests not done,manual hand-off
+INC-207,2026-09-12,SEV2,OTA booking import failed overnight,37 bookings re-keyed by hand,"import script error, no retry"
+INC-214,2026-09-30,SEV2,Booking search very slow at month-end,front desk queue; p95 4.2 s,reports on live database
+INC-221,2026-10-24,SEV1,Front-desk screen error after hotfix on production,check-in down 35 minutes,untested change on production
+INC-226,2026-11-01,SEV2,Night audit finished 2 h 40 m late after month-end close,refund batch delayed,"slow queries, reports on live database"
+INC-229,2026-11-03,SEV3,Duplicate housekeeping tickets over Diwali weekend,"9.4% duplicates, 52-min median",re-keying from phone and paper

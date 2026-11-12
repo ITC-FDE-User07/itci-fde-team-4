@@ -1,0 +1,7 @@
+id,started_at,duration_min,severity,summary
+INC-301,2026-08-29 21:40,18,SEV2,Checkout slow; courier API timeouts held page threads
+INC-307,2026-09-14 11:05,26,SEV2,Stock sync job lock timeout; online stock 8 hours old
+INC-312,2026-10-03 20:31,22,SEV2,Navratri sale: payment failures 9% for 20 minutes
+INC-318,2026-10-21 02:10,35,SEV3,Nightly order batch failed; orders reached warehouse at noon
+INC-325,2026-11-07 20:13,47,SEV1,Diwali sale: monolith out of database connections; site down
+INC-326,2026-11-08 19:02,14,SEV2,App price differed from web during the sale (promotion rule mismatch)

@@ -1,0 +1,5 @@
+sdk,purpose,receives_email,receives_phone
+AnalyticsSDK-A,product analytics,yes,no
+AdsSDK-B,ad attribution,yes,yes
+CrashSDK-C,crash reports,no,no
+PushSDK-D,notifications,yes,no

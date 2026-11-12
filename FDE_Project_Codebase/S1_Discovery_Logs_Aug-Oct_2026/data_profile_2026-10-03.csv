@@ -1,0 +1,6 @@
+table,check,result
+bookings,rows,3104552
+bookings,missing channel (%),6.2
+guests,duplicate guest records (%),3.1
+bookings,check-out before check-in (rows),412
+payments,amounts stored as FLOAT,yes

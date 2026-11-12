@@ -1,0 +1,3 @@
+db_user,host,privileges,used_by,credential_location
+pms_app,%,ALL PRIVILEGES,"PMS screens, night-audit job, reports, vendor VPN",config.ini in the PMS repository (plain text)
+root,localhost,ALL PRIVILEGES,DBA (rarely),server only

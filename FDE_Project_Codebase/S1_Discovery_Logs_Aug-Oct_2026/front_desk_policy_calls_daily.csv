@@ -1,0 +1,92 @@
+date,policy_calls,avg_minutes,top_topic
+2026-08-08,57,4.0,late check-out
+2026-08-09,58,3.7,refunds
+2026-08-10,61,3.9,breakfast
+2026-08-11,65,4.3,refunds
+2026-08-12,52,4.1,refunds
+2026-08-13,67,4.2,refunds
+2026-08-14,60,4.0,late check-out
+2026-08-15,74,4.2,refunds
+2026-08-16,60,4.1,late check-out
+2026-08-17,65,4.3,refunds
+2026-08-18,63,4.1,deposits
+2026-08-19,56,4.1,late check-out
+2026-08-20,63,4.3,late check-out
+2026-08-21,53,4.4,deposits
+2026-08-22,59,4.1,late check-out
+2026-08-23,56,4.1,pets
+2026-08-24,56,3.9,late check-out
+2026-08-25,64,3.7,breakfast
+2026-08-26,62,3.8,deposits
+2026-08-27,60,3.8,refunds
+2026-08-28,54,3.8,pets
+2026-08-29,56,4.0,late check-out
+2026-08-30,67,3.8,deposits
+2026-08-31,57,3.9,pets
+2026-09-01,63,4.3,deposits
+2026-09-02,62,3.6,late check-out
+2026-09-03,62,3.7,pets
+2026-09-04,55,3.9,late check-out
+2026-09-05,59,3.6,breakfast
+2026-09-06,57,4.3,deposits
+2026-09-07,62,3.7,deposits
+2026-09-08,63,4.1,breakfast
+2026-09-09,67,4.3,pets
+2026-09-10,59,4.4,late check-out
+2026-09-11,52,3.7,pets
+2026-09-12,68,4.0,pets
+2026-09-13,62,3.8,late check-out
+2026-09-14,64,4.1,breakfast
+2026-09-15,67,4.2,refunds
+2026-09-16,56,3.7,deposits
+2026-09-17,67,3.8,late check-out
+2026-09-18,62,4.2,pets
+2026-09-19,61,4.3,refunds
+2026-09-20,58,3.7,refunds
+2026-09-21,62,4.3,pets
+2026-09-22,67,4.2,pets
+2026-09-23,63,3.7,refunds
+2026-09-24,61,4.2,deposits
+2026-09-25,53,4.3,breakfast
+2026-09-26,60,4.1,breakfast
+2026-09-27,64,3.9,breakfast
+2026-09-28,55,3.8,late check-out
+2026-09-29,63,4.3,breakfast
+2026-09-30,52,4.3,late check-out
+2026-10-01,58,4.4,refunds
+2026-10-02,66,3.8,breakfast
+2026-10-03,70,4.2,late check-out
+2026-10-04,75,4.1,pets
+2026-10-05,62,4.2,deposits
+2026-10-06,65,3.7,deposits
+2026-10-07,68,4.3,late check-out
+2026-10-08,66,3.9,refunds
+2026-10-09,66,3.7,deposits
+2026-10-10,60,3.9,pets
+2026-10-11,67,3.6,pets
+2026-10-12,63,3.8,late check-out
+2026-10-13,59,4.0,deposits
+2026-10-14,57,3.7,refunds
+2026-10-15,55,4.2,late check-out
+2026-10-16,60,3.9,deposits
+2026-10-17,67,4.2,breakfast
+2026-10-18,64,4.2,deposits
+2026-10-19,58,3.8,breakfast
+2026-10-20,53,3.9,refunds
+2026-10-21,54,4.2,deposits
+2026-10-22,67,4.1,deposits
+2026-10-23,60,4.0,refunds
+2026-10-24,72,3.7,breakfast
+2026-10-25,65,4.2,pets
+2026-10-26,67,4.4,pets
+2026-10-27,63,4.0,refunds
+2026-10-28,64,3.7,late check-out
+2026-10-29,64,3.9,pets
+2026-10-30,59,3.8,pets
+2026-10-31,73,4.2,breakfast
+2026-11-01,61,4.3,deposits
+2026-11-02,56,4.4,deposits
+2026-11-03,68,4.1,breakfast
+2026-11-04,55,4.0,deposits
+2026-11-05,52,4.3,breakfast
+2026-11-06,64,4.0,late check-out
