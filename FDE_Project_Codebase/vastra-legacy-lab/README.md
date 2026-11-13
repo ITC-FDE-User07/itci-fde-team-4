@@ -57,3 +57,6 @@ See `evidence/EVIDENCE_MAP.md` for which file proves which evidence item. Facili
 
 - The lab uses SQLite in place of the monolith's MySQL so it runs anywhere; tables and behaviour are the same.
 - Large logs are samples (for example, orders are a 10% sample); the evidence map says which.
+
+
+anil
