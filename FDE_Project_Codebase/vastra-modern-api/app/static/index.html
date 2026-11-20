@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vastra API Workbench</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Segoe UI", sans-serif;
+      background: #101413;
+      color: #e8eee9;
+      --panel: #191f1c;
+      --line: #303a34;
+      --muted: #9aa79f;
+      --accent: #c4f06b;
+      --danger: #ff9a8f;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; }
+    header {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 20px; padding: 22px max(24px, calc((100vw - 1240px) / 2));
+      border-bottom: 1px solid var(--line); background: #141a17;
+    }
+    h1 { margin: 0; font-size: 21px; letter-spacing: .01em; }
+    h1 span { color: var(--accent); }
+    header p { margin: 5px 0 0; color: var(--muted); font-size: 13px; }
+    .status { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: #69756e; }
+    .dot.ok { background: var(--accent); box-shadow: 0 0 12px #c4f06666; }
+    main { max-width: 1240px; margin: auto; padding: 24px; }
+    .config, .card, .results { border: 1px solid var(--line); background: var(--panel); border-radius: 12px; }
+    .config { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 14px; align-items: end; padding: 17px; }
+    label { display: grid; gap: 7px; color: var(--muted); font-size: 12px; }
+    input, select, textarea {
+      width: 100%; min-width: 0; border: 1px solid var(--line); background: #101513;
+      color: #e8eee9; border-radius: 7px; padding: 10px 11px; font: inherit; font-size: 13px;
+    }
+    input:focus, select:focus, textarea:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+    button {
+      min-height: 38px; border: 1px solid #536143; border-radius: 7px; padding: 9px 13px;
+      background: #27311f; color: var(--accent); font-weight: 650; cursor: pointer;
+    }
+    button:hover { background: #344127; }
+    button.secondary { background: #202723; border-color: var(--line); color: #dce5de; }
+    button.warning { color: #ffd1a1; border-color: #67513d; background: #30271f; }
+    button:disabled { opacity: .55; cursor: wait; }
+    .intro { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin: 26px 0 16px; }
+    h2 { margin: 0; font-size: 17px; }
+    .intro p, .hint { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .card { padding: 17px; }
+    .card h3 { margin: 0 0 5px; font-size: 15px; }
+    .route { margin: 0 0 14px; color: var(--accent); font: 12px Consolas, monospace; }
+    .fields { display: grid; gap: 11px; margin: 13px 0; }
+    .two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .full { grid-column: 1 / -1; }
+    .actions { display: flex; align-items: center; gap: 9px; margin-top: 12px; }
+    .hint { margin-top: 10px; }
+    .results { margin-top: 18px; overflow: hidden; }
+    .results-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+    .results-head h2 { font-size: 14px; }
+    #summary { color: var(--muted); font-size: 12px; }
+    #output { min-height: 160px; max-height: 430px; overflow: auto; padding: 16px; margin: 0; color: #d1dcd4; font: 12px/1.55 Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .test-list { display: grid; gap: 7px; margin-top: 12px; }
+    .test-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; font-size: 12px; }
+    .pass { color: var(--accent); } .fail { color: var(--danger); }
+    @media (max-width: 900px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .config { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 600px) {
+      header, .intro { align-items: flex-start; flex-direction: column; }
+      main { padding: 16px; }
+      .grid, .config { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Vastra <span>API Workbench</span></h1>
+      <p>Browser-based checks for Vastra API v1</p>
+    </div>
+    <div class="status"><span id="health-dot" class="dot"></span><span id="health-label">Checking API…</span></div>
+  </header>
+  <main>
+    <section class="config" aria-label="Connection settings">
+      <label>API base URL
+        <input id="base-url" type="url" aria-label="API base URL">
+      </label>
+      <label>API key
+        <select id="api-key" aria-label="API key">
+          <option value="vastra-web">vastra-web</option>
+          <option value="vastra-app">vastra-app</option>
+          <option value="vastra-pos">vastra-pos</option>
+          <option value="vastra-warehouse">vastra-warehouse</option>
+          <option value="vastra-erp">vastra-erp</option>
+        </select>
+      </label>
+      <label>Acting user
+        <input id="user-name" value="ui-tester" aria-label="Acting user">
+      </label>
+      <button id="smoke-button" type="button">Run read-only smoke checks</button>
+    </section>
+
+    <div class="intro">
+      <div>
+        <h2>Endpoint checks</h2>
+        <p>Choose an API key with the required role. Write operations change the local test database.</p>
+      </div>
+      <span class="hint">API docs: <a href="/docs" style="color: var(--accent)">/docs</a></span>
+    </div>
+
+    <section class="grid">
+      <article class="card">
+        <h3>Catalogue</h3><p class="route">GET /v1/catalogue/{sku}</p>
+        <div class="fields"><label>SKU<input id="catalogue-sku" value="SKU00003"></label></div>
+        <button type="button" data-action="catalogue">Fetch product</button>
+        <p class="hint">Read-only; checks ETag and cache headers.</p>
+      </article>
+
+      <article class="card">
+        <h3>Pricing</h3><p class="route">GET /v1/prices/{sku}</p>
+        <div class="fields two">
+          <label>SKU<input id="price-sku" value="SKU00003"></label>
+          <label>Coupon %<input id="coupon" type="number" min="0" max="100" value="10"></label>
+          <label>Quantity<input id="price-qty" type="number" min="1" value="1"></label>
+          <label>Store ID (optional)<input id="price-store" placeholder="ST001"></label>
+          <label class="full"><span><input id="member" type="checkbox" checked style="width:auto"> Member discount</span></label>
+        </div>
+        <button type="button" data-action="price">Get price quote</button>
+      </article>
+
+      <article class="card">
+        <h3>Stock event</h3><p class="route">POST /v1/stock/events</p>
+        <div class="fields two">
+          <label>SKU<input id="stock-sku" value="SKU00003"></label>
+          <label>Quantity change<input id="stock-delta" type="number" value="1"></label>
+          <label class="full">Reason<input id="stock-reason" value="ui.test.adjustment"></label>
+        </div>
+        <button type="button" data-action="stock">Post stock event</button>
+        <p class="hint">Requires warehouse or POS role. Repeats use the same event ID only when manually replaying.</p>
+      </article>
+
+      <article class="card">
+        <h3>Price override</h3><p class="route">POST /v1/overrides</p>
+        <div class="fields two">
+          <label>SKU<input id="override-sku" value="SKU00003"></label>
+          <label>Store ID<input id="override-store" value="ST001"></label>
+          <label>Override price (₹)<input id="override-price" type="number" min="1" value="999"></label>
+          <label>Expires at<input id="override-expiry" type="datetime-local"></label>
+          <label class="full">Reason<input id="override-reason" value="Local UI test"></label>
+        </div>
+        <button type="button" data-action="override">Create audited override</button>
+        <p class="hint">Requires POS role. Creates an audit record.</p>
+      </article>
+
+      <article class="card">
+        <h3>Audit log</h3><p class="route">GET /v1/audit/overrides</p>
+        <p class="hint">Fetch recorded override actors, reasons and request IDs.</p>
+        <div class="actions"><button type="button" data-action="audit">Fetch audit entries</button></div>
+      </article>
+
+      <article class="card">
+        <h3>Integration outbox</h3><p class="route">GET /v1/events</p>
+        <label>Maximum events<input id="event-limit" type="number" min="1" max="1000" value="25"></label>
+        <div class="actions"><button type="button" data-action="events">Fetch events</button></div>
+        <p class="hint">Requires ERP role. Shows pending and published event records.</p>
+      </article>
+
+      <article class="card">
+        <h3>Checkout</h3><p class="route">POST /v1/checkout</p>
+        <div class="fields two">
+          <label>SKU<input id="checkout-sku" value="SKU00003"></label>
+          <label>Quantity<input id="checkout-qty" type="number" min="1" max="100" value="1"></label>
+          <label>Pincode<input id="pincode" value="560001"></label>
+          <label>Channel<input id="channel" value="ui-test"></label>
+          <label class="full"><span><input id="checkout-member" type="checkbox" checked style="width:auto"> Member discount</span></label>
+        </div>
+        <button class="warning" type="button" data-action="checkout">Place test checkout</button>
+        <p class="hint">Changes stock and calls the payment partner. Use only with local test services.</p>
+      </article>
+    </section>
+
+    <section class="results" aria-live="polite">
+      <div class="results-head"><h2>Test output</h2><span id="summary">No requests yet</span></div>
+      <div id="test-results" class="test-list" style="padding: 0 16px"></div>
+      <pre id="output">Responses, status codes, request IDs, and errors will appear here.</pre>
+    </section>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const output = $("output");
+    const summary = $("summary");
+
+    $("base-url").value = window.location.origin;
+    const expiry = new Date(Date.now() + 7 * 86400000);
+    expiry.setMinutes(expiry.getMinutes() - expiry.getTimezoneOffset());
+    $("override-expiry").value = expiry.toISOString().slice(0, 16);
+
+    function headers(extra = {}) {
+      return {
+        "X-API-Key": $("api-key").value,
+        "X-User": $("user-name").value || "ui-tester",
+        ...extra
+      };
+    }
+
+    async function request(method, path, body, extraHeaders = {}) {
+      const base = $("base-url").value.trim().replace(/\/+$/, "");
+      const options = { method, headers: headers(extraHeaders) };
+      if (body !== undefined) {
+        options.headers["Content-Type"] = "application/json";
+        options.body = JSON.stringify(body);
+      }
+      const response = await fetch(`${base}${path}`, options);
+      const raw = await response.text();
+      let data;
+      try { data = raw ? JSON.parse(raw) : null; }
+      catch { data = raw; }
+      return {
+        status: response.status,
+        ok: response.ok,
+        requestId: response.headers.get("X-Request-ID"),
+        serverTiming: response.headers.get("Server-Timing"),
+        etag: response.headers.get("ETag"),
+        cacheControl: response.headers.get("Cache-Control"),
+        data
+      };
+    }
+
+    function show(title, result) {
+      const { status, requestId, serverTiming, etag, cacheControl, data } = result;
+      output.textContent = [
+        `${new Date().toLocaleTimeString()}  ${title}`,
+        `HTTP ${status}`,
+        requestId ? `X-Request-ID: ${requestId}` : "",
+        serverTiming ? `Server-Timing: ${serverTiming}` : "",
+        etag ? `ETag: ${etag}` : "",
+        cacheControl ? `Cache-Control: ${cacheControl}` : "",
+        "",
+        JSON.stringify(data, null, 2)
+      ].filter(Boolean).join("\n");
+      summary.textContent = `${status} · ${title}`;
+      summary.className = result.ok ? "pass" : "fail";
+      return result;
+    }
+
+    async function runAction(title, path, method = "GET", body, extraHeaders = {}) {
+      try {
+        const result = await request(method, path, body, extraHeaders);
+        show(title, result);
+        return result;
+      } catch (error) {
+        const result = { status: "Network error", ok: false, data: String(error) };
+        show(title, result);
+        return result;
+      }
+    }
+
+    async function checkHealth() {
+      const result = await request("GET", "/v1/health");
+      $("health-dot").classList.toggle("ok", result.ok);
+      $("health-label").textContent = result.ok ? "API reachable" : "API unavailable";
+      return result;
+    }
+
+    document.querySelectorAll("[data-action]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const action = button.dataset.action;
+        button.disabled = true;
+        try {
+          if (action === "catalogue") {
+            await runAction("Catalogue", `/v1/catalogue/${encodeURIComponent($("catalogue-sku").value.trim())}`);
+          } else if (action === "price") {
+            const params = new URLSearchParams({
+              coupon_pct: $("coupon").value,
+              qty: $("price-qty").value,
+              member: String($("member").checked)
+            });
+            if ($("price-store").value.trim()) params.set("store_id", $("price-store").value.trim());
+            await runAction("Price quote", `/v1/prices/${encodeURIComponent($("price-sku").value.trim())}?${params}`);
+          } else if (action === "stock") {
+            const eventId = `ui-${crypto.randomUUID()}`;
+            await runAction("Stock event", "/v1/stock/events", "POST", {
+              event_id: eventId,
+              sku: $("stock-sku").value.trim(),
+              delta: Number($("stock-delta").value),
+              reason: $("stock-reason").value.trim()
+            });
+          } else if (action === "override") {
+            const expiresAt = new Date($("override-expiry").value).toISOString();
+            await runAction("Price override", "/v1/overrides", "POST", {
+              sku: $("override-sku").value.trim(),
+              store_id: $("override-store").value.trim(),
+              price: Number($("override-price").value),
+              reason: $("override-reason").value.trim(),
+              expires_at: expiresAt
+            });
+          } else if (action === "audit") {
+            await runAction("Override audit", "/v1/audit/overrides");
+          } else if (action === "events") {
+            await runAction("Integration outbox", `/v1/events?limit=${encodeURIComponent($("event-limit").value)}`);
+          } else if (action === "checkout") {
+            if (!window.confirm("This places an order, reduces stock, and calls the payment partner. Continue against your local test services?")) return;
+            const idempotencyKey = `ui-checkout-${crypto.randomUUID()}`;
+            await runAction("Checkout", "/v1/checkout", "POST", {
+              sku: $("checkout-sku").value.trim(),
+              qty: Number($("checkout-qty").value),
+              coupon_pct: Number($("coupon").value),
+              member: $("checkout-member").checked,
+              pincode: $("pincode").value.trim(),
+              channel: $("channel").value.trim()
+            }, { "Idempotency-Key": idempotencyKey });
+          }
+        } catch (error) {
+          show("Request preparation failed", { status: "Client error", ok: false, data: String(error) });
+        } finally {
+          button.disabled = false;
+        }
+      });
+    });
+
+    $("smoke-button").addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      const results = $("test-results");
+      results.replaceChildren();
+      const checks = [
+        ["Health endpoint", () => request("GET", "/v1/health")],
+        ["Catalogue access", () => request("GET", `/v1/catalogue/${encodeURIComponent($("catalogue-sku").value.trim())}`)],
+        ["Price quote", () => request("GET", `/v1/prices/${encodeURIComponent($("price-sku").value.trim())}?coupon_pct=0&member=false`)]
+      ];
+      let passed = 0;
+      for (const [label, check] of checks) {
+        let result;
+        try { result = await check(); }
+        catch (error) { result = { ok: false, status: "Network error", data: String(error) }; }
+        if (result.ok) passed += 1;
+        const row = document.createElement("div");
+        row.className = "test-row";
+        const name = document.createElement("span");
+        name.textContent = label;
+        const outcome = document.createElement("strong");
+        outcome.className = result.ok ? "pass" : "fail";
+        outcome.textContent = result.ok ? `PASS · ${result.status}` : `FAIL · ${result.status}`;
+        row.append(name, outcome);
+        results.append(row);
+        show(label, result);
+      }
+      summary.textContent = `${passed}/${checks.length} read-only checks passed`;
+      summary.className = passed === checks.length ? "pass" : "fail";
+      button.disabled = false;
+    });
+
+    checkHealth().catch((error) => {
+      $("health-label").textContent = `API unavailable: ${error}`;
+    });
+  </script>
+</body>
+</html>
