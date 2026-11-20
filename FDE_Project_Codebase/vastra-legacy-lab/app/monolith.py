@@ -11,14 +11,40 @@ What participants should find (evidence):
 - R15a: one shared database login (config.ini) for everything.
 """
 import time, datetime as dt, uuid
+# Resolve the legacy test UI directory relative to this module, not the current shell directory.
+from pathlib import Path
 import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
+# Serve the added browser test page without changing the legacy API routes.
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from app import db, pricing_web, app_api
 
 app = FastAPI(title="Vastra legacy monolith")
 _partners = None
+# Expose the static test UI so users can try legacy endpoints from a browser.
+app.mount(
+    "/test-ui",
+    StaticFiles(directory=Path(__file__).parent / "static", html=True),
+    name="legacy-test-ui",
+)
+
+
+# Give the service root a helpful endpoint list instead of the default 404 response.
+@app.get("/")
+def home():
+    return {
+        "service": "Vastra legacy monolith",
+        "message": "Use one of the legacy endpoints below.",
+        "endpoints": {
+            "product_page": "/product/SKU00003",
+            "mobile_price": "/app-api/v0/price/SKU00003",
+            "checkout": "POST /checkout",
+            "test_ui": "/test-ui/",
+            "api_docs": "/docs",
+        },
+    }
 
 
 def partners():

@@ -36,6 +36,7 @@ pip install -r requirements.txt
 python -m app.db                                  # create and seed the lab database
 python -m uvicorn app.partners.stubs:app --port 8100        # partner APIs
 python -m uvicorn app.monolith:app --port 8000               # the monolith
+# open http://localhost:8000/test-ui/ for the legacy browser test page
 curl -X POST localhost:8000/checkout -H 'content-type: application/json' -d '{"sku":"SKU00003","coupon_pct":10,"member":true}'
 curl 'localhost:8000/app-api/v0/price/SKU00003?coupon_pct=10&member=true'   # compare with the web total
 pytest -q

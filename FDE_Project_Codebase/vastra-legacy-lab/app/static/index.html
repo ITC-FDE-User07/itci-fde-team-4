@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vastra Legacy Test Page</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: "Segoe UI", sans-serif;
+      background: #111512;
+      color: #edf2ed;
+      --panel: #1a211c;
+      --line: #354138;
+      --muted: #9daaa0;
+      --accent: #d3ef85;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; }
+    header {
+      display: flex; justify-content: space-between; align-items: center; gap: 20px;
+      padding: 22px max(22px, calc((100vw - 1060px) / 2));
+      border-bottom: 1px solid var(--line); background: #171d19;
+    }
+    h1 { margin: 0; font-size: 21px; }
+    h1 span { color: var(--accent); }
+    header p { margin: 5px 0 0; color: var(--muted); font-size: 13px; }
+    main { max-width: 1060px; margin: auto; padding: 24px; }
+    .notice { border: 1px solid #625138; border-radius: 9px; background: #292419; color: #ead7ac; padding: 12px 14px; font-size: 13px; line-height: 1.5; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; margin-top: 16px; }
+    .card, .output { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: 17px; }
+    h2 { margin: 0; font-size: 16px; }
+    .route { margin: 5px 0 14px; color: var(--accent); font: 12px Consolas, monospace; }
+    .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+    label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; }
+    input { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 6px; background: #111713; color: #edf2ed; padding: 9px 10px; font: inherit; }
+    input:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+    button { margin-top: 13px; border: 1px solid #52613f; border-radius: 6px; background: #2b3523; color: var(--accent); padding: 9px 12px; font-weight: 650; cursor: pointer; }
+    button:hover { background: #39462e; }
+    button:disabled { opacity: .6; cursor: wait; }
+    .danger { border-color: #735844; background: #38291f; color: #ffd1a1; }
+    .hint { margin: 10px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .output { margin-top: 16px; }
+    .output-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    #status { color: var(--muted); font-size: 12px; }
+    pre { min-height: 120px; max-height: 360px; overflow: auto; margin: 13px 0 0; border-top: 1px solid var(--line); padding-top: 12px; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.55 Consolas, monospace; color: #d4dfd6; }
+    .links { display: flex; flex-wrap: wrap; gap: 13px; margin-top: 18px; font-size: 12px; }
+    a { color: var(--accent); }
+    @media (max-width: 650px) {
+      header { align-items: flex-start; flex-direction: column; }
+      main { padding: 16px; }
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div><h1>Vastra <span>Legacy Test Page</span></h1><p>Manual browser checks for the original monolith endpoints</p></div>
+  </header>
+  <main>
+    <div class="notice">
+      This page calls the legacy implementation directly. Checkout is sequential, has no idempotency
+      key, and may charge the payment stub; use only with the local lab services.
+    </div>
+
+    <section class="grid">
+      <article class="card">
+        <h2>Server-rendered product</h2>
+        <p class="route">GET /product/{sku}</p>
+        <div class="fields">
+          <label>SKU<input id="product-sku" value="SKU00003"></label>
+        </div>
+        <button type="button" data-action="product">Load product HTML</button>
+        <p class="hint">This legacy page renders a product page for each request.</p>
+      </article>
+
+      <article class="card">
+        <h2>Mobile app price</h2>
+        <p class="route">GET /app-api/v0/price/{sku}</p>
+        <div class="fields">
+          <label>SKU<input id="price-sku" value="SKU00003"></label>
+          <label>Coupon %<input id="coupon" type="number" min="0" max="100" value="10"></label>
+          <label><span>Member discount</span><input id="member" type="checkbox" checked style="width:auto"></label>
+        </div>
+        <button type="button" data-action="price">Get mobile price</button>
+        <p class="hint">Compare with website pricing to observe the separate legacy pricing rules.</p>
+      </article>
+
+      <article class="card">
+        <h2>Legacy checkout</h2>
+        <p class="route">POST /checkout</p>
+        <div class="fields">
+          <label>SKU<input id="checkout-sku" value="SKU00003"></label>
+          <label>Quantity<input id="quantity" type="number" min="1" value="1"></label>
+          <label>Coupon %<input id="checkout-coupon" type="number" min="0" max="100" value="10"></label>
+          <label>Pincode<input id="pincode" value="560001"></label>
+          <label>Channel<input id="channel" value="legacy-ui"></label>
+          <label><span>Member discount</span><input id="checkout-member" type="checkbox" checked style="width:auto"></label>
+        </div>
+        <button class="danger" type="button" data-action="checkout">Place legacy checkout</button>
+        <p class="hint">Reads the stale stock copy, calls courier then payment, and has no retry protection.</p>
+      </article>
+    </section>
+
+    <section class="output" aria-live="polite">
+      <div class="output-head"><h2>Response</h2><span id="status">No request yet</span></div>
+      <pre id="result">Endpoint responses will appear here.</pre>
+    </section>
+    <nav class="links" aria-label="Related pages">
+      <a href="/">Legacy service info</a>
+      <a href="/docs">Legacy OpenAPI docs</a>
+      <a href="http://127.0.0.1:8200/ui/">Modern API test workbench</a>
+    </nav>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const result = $("result");
+    const status = $("status");
+
+    async function send(path, options = {}) {
+      try {
+        const response = await fetch(path, options);
+        const body = await response.text();
+        let payload;
+        try { payload = body ? JSON.parse(body) : null; }
+        catch { payload = body; }
+        status.textContent = `HTTP ${response.status}`;
+        result.textContent = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
+      } catch (error) {
+        status.textContent = "Network error";
+        result.textContent = String(error);
+      }
+    }
+
+    document.querySelectorAll("[data-action]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        try {
+          const action = button.dataset.action;
+          if (action === "product") {
+            await send(`/product/${encodeURIComponent($("product-sku").value.trim())}`);
+          } else if (action === "price") {
+            const params = new URLSearchParams({
+              coupon_pct: $("coupon").value,
+              member: String($("member").checked)
+            });
+            await send(`/app-api/v0/price/${encodeURIComponent($("price-sku").value.trim())}?${params}`);
+          } else if (action === "checkout") {
+            if (!window.confirm("This legacy checkout may charge the payment stub and has no idempotency protection. Continue against your local test services?")) return;
+            await send("/checkout", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                sku: $("checkout-sku").value.trim(),
+                qty: Number($("quantity").value),
+                coupon_pct: Number($("checkout-coupon").value),
+                member: $("checkout-member").checked,
+                pincode: $("pincode").value.trim(),
+                channel: $("channel").value.trim()
+              })
+            });
+          }
+        } finally {
+          button.disabled = false;
+        }
+      });
+    });
+  </script>
+</body>
+</html>

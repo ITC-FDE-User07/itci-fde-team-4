@@ -34,6 +34,19 @@ def test_three_pricing_copies_disagree_on_the_same_cart():
     assert len(set(prices.values())) == 3, prices        # R4: three answers for one cart
 
 
+def test_monolith_root_lists_local_endpoints(client):
+    r = client.get("/")
+    assert r.status_code == 200
+    assert r.json()["endpoints"]["product_page"] == "/product/SKU00003"
+
+
+def test_legacy_test_page_is_served(client):
+    r = client.get("/test-ui/")
+    assert r.status_code == 200
+    assert "Vastra Legacy Test Page" in r.text
+    assert "Place legacy checkout" in r.text
+
+
 def test_sale_ends_later_in_the_app_than_on_the_web():
     after_end = NOW + dt.timedelta(hours=3)               # sale ended 1 hour ago (UTC)
     assert pricing_web.price(SALE_ITEM, now=after_end) == 2000
