@@ -36,7 +36,8 @@ legacy test UI open at `http://127.0.0.1:8000/test-ui/`.
 - `vastra-modern-api/app/main.py`: modern API routes, pricing, access roles, stock movements, overrides, outbox, checkout.
 - `vastra-modern-api/app/db.py`: API schema and initial read-only bootstrap from legacy SQLite.
 - `vastra-modern-api/app/static/index.html`: modern browser test workbench and smoke tests.
-- `vastra-modern-api/tests/test_api.py`: modern API tests.
+- `vastra-modern-api/tests/conftest.py`: shared isolated product/database fixture for focused API tests.
+- `vastra-modern-api/tests/test_*.py`: separate test programs for health, UI, catalogue, pricing, stock, overrides, outbox, and checkout.
 - `vastra-modern-api/demo.py`: sample quote and idempotent retry client.
 - `vastra-modern-api/README.md`: full local setup, architecture, API contracts, examples, tests and limitations.
 - `vastra-modern-api/LEGACY-VS-MODERN.md`: compact old/new comparison with code snippets.
@@ -44,13 +45,36 @@ legacy test UI open at `http://127.0.0.1:8000/test-ui/`.
 
 ## Validation completed
 
-- Modern API test suite: **14 passed**.
+- Modern API focused test programs: **21 passed** (including channel pricing, stock retries, audit, outbox, checkout failure/fallback and UI).
 - Legacy characterization suite after adding the legacy UI: **8 passed**.
 - Modern UI was opened in the integrated browser; read-only smoke tests passed **3/3**.
 - Legacy product and app-price controls were exercised in the browser and returned HTTP 200.
 - Legacy `/` route was confirmed to return a service/endpoints list instead of a 404.
 - Modern checkout was previously exercised against local partner stubs and a repeated request with
   the same completed idempotency key returned the original order.
+
+## Design section 2.3: pricing example and proof
+
+The document example uses base ₹2,000, active sale ₹1,600, coupon 10%, and member discount 10%.
+Expected legacy outputs are website ₹1,296, app ₹1,440, and POS ₹1,600. The modern pricing policy
+returns ₹1,296 for web, app, and POS by applying coupon to sale price first, then the member
+discount: ₹1,600 → ₹1,440 → ₹1,296.
+
+Automated proof uses a fixed test product with those prices and a future sale expiry:
+
+```powershell
+cd FDE_Project_Codebase\vastra-legacy-lab
+..\..\.venv\Scripts\python.exe -m pytest -q tests\test_legacy_characterisation.py -k "three_pricing_copies or sale_ends_later"
+
+cd ..\vastra-modern-api
+..\..\.venv\Scripts\python.exe -m pytest -q tests\test_pricing_policy.py -k documented_price
+```
+
+The legacy assertions check the exact channel totals and the app's late sale-end behavior. The
+modern parameterized test calls `/v1/prices/SKU00003` with each of `vastra-web`, `vastra-app`, and
+`vastra-pos`, then verifies the same ₹1,296 and the sale/coupon/member breakdown. The locally
+seeded SKU can have different price data, so it is not the fixture for proving the document's
+exact numbers. More detail is in [LEGACY-VS-MODERN.md](./LEGACY-VS-MODERN.md).
 
 ## Known limitations to address before production
 
@@ -70,7 +94,6 @@ legacy test UI open at `http://127.0.0.1:8000/test-ui/`.
 ## Suggested next continuation steps
 
 - Re-run both test commands from the README after any changes.
-- Add checkout tests for payment timeout/failure and verify reservation release.
 - Add tests for simultaneous requests sharing an idempotency key and for process-restart recovery.
 - Decide and document the expected idempotency behavior of the real payment provider.
 - Replace `on_event("startup")` with a FastAPI lifespan handler to clear the current deprecation warning.
@@ -80,14 +103,44 @@ legacy test UI open at `http://127.0.0.1:8000/test-ui/`.
 - Revisit `MIGRATION.md` stage gates and traffic percentages with the Vastra teams before treating
   the plan as committed delivery dates.
 
-## Local test commands
+## Test programs and commands
 
-From the repository root, using the existing `.venv`:
+The modern tests are separate, independently runnable programs. They share the clean temporary
+database and product fixture in `tests/conftest.py`; external services are mocked where checkout
+needs them. The legacy suite is separate and checks the old behavior (including its intentional
+defects).
+
+| Program | Cases covered |
+|---|---|
+| `test_service_health.py` | Health endpoint returns service status |
+| `test_api_workbench.py` | Static browser test workbench is served |
+| `test_catalogue_api.py` | API-key requirement, product response, ETag and cache headers |
+| `test_pricing_policy.py` | Exact documented sale/coupon/member breakdown is consistent for web/app/POS; quantity total; price role |
+| `test_stock_ledger.py` | Stock update, duplicate event retry, negative inventory rejection, role enforcement |
+| `test_price_overrides.py` | Named audit, store-scoped override, default price unaffected, role enforcement |
+| `test_outbox_events.py` | Stock update produces integration event; ERP role required |
+| `test_checkout.py` | Idempotency key validation, retry returns original completed order, oversell rejection, successful order outbox event, payment failure releases stock, courier fallback |
+| Legacy `test_legacy_characterisation.py` | Legacy channel pricing differences and timezone defect, root/test-page routes, sequential checkout trace, stale stock copy and duplicate payment behavior |
+
+Run the complete modern suite or an individual test program from the repository root, using the
+existing `.venv`:
 
 ```powershell
 cd FDE_Project_Codebase\vastra-modern-api
-..\..\.venv\Scripts\python.exe -m pytest -q tests\test_api.py
+..\..\.venv\Scripts\python.exe -m pytest -q tests
+..\..\.venv\Scripts\python.exe -m pytest -q tests\test_service_health.py
+..\..\.venv\Scripts\python.exe -m pytest -q tests\test_api_workbench.py
+..\..\.venv\Scripts\python.exe -m pytest -q tests\test_catalogue_api.py
+..\..\.venv\Scripts\python.exe -m pytest -q tests\test_pricing_policy.py
+..\..\.venv\Scripts\python.exe -m pytest -q tests\test_stock_ledger.py
+..\..\.venv\Scripts\python.exe -m pytest -q tests\test_price_overrides.py
+..\..\.venv\Scripts\python.exe -m pytest -q tests\test_outbox_events.py
+..\..\.venv\Scripts\python.exe -m pytest -q tests\test_checkout.py
 
 cd ..\vastra-legacy-lab
 ..\..\.venv\Scripts\python.exe -m pytest -q tests\test_legacy_characterisation.py
 ```
+
+Most recently verified totals: modern **21 passed** and legacy **8 passed**. Pytest reports
+FastAPI/Starlette deprecation warnings for the current startup hook and dependency alias; these
+warnings do not fail the tests.

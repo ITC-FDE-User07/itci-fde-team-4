@@ -19,7 +19,7 @@ OAuth2/OIDC.
 | Modern API | `vastra-modern-api/app/main.py` | Versioned REST endpoints and business rules |
 | Modern API database | `vastra-modern-api/app/db.py` | API-owned schema and optional read-only bootstrap from the legacy SQLite database |
 | Modern API test page | `vastra-modern-api/app/static/index.html` | Read-only smoke checks and manual API requests |
-| API tests | `vastra-modern-api/tests/test_api.py` | Authentication, pricing, stock, overrides and checkout checks |
+| API tests | `vastra-modern-api/tests/test_*.py` | Focused, independently runnable programs for each API behavior |
 | Legacy tests | `vastra-legacy-lab/tests/test_legacy_characterisation.py` | Tests describing legacy behavior and its known defects |
 | Migration plan | `vastra-modern-api/MIGRATION.md` | Proposed 12-week incremental migration with rollback checkpoints |
 | Legacy comparison | `vastra-modern-api/LEGACY-VS-MODERN.md` | Feature comparison and representative old/new code snippets |
@@ -121,6 +121,37 @@ Unknown SKUs return 404.
 The response includes the unit price, quantity, total, currency, policy version and price
 breakdown. The order of operations is the API's current lab policy and should be confirmed by
 pricing stakeholders before production use.
+
+#### Design example: same basket, one price
+
+The design document's section 2.3 uses a ₹2,000 base price, an active ₹1,600 sale price, a 10%
+coupon and a 10% member discount:
+
+| Channel | Legacy result | Modern API result |
+|---|---:|---:|
+| Website | ₹1,296 | ₹1,296 |
+| Mobile app | ₹1,440 | ₹1,296 |
+| Store POS | ₹1,600 | ₹1,296 |
+
+The modern rule applies the coupon to the sale price, then applies the member discount:
+`₹1,600 × 0.90 = ₹1,440`, followed by `₹1,440 × 0.90 = ₹1,296`. The API response breakdown
+should therefore show sale ₹1,600, coupon result ₹1,440, and member result ₹1,296.
+
+Run the characterization and API tests from their respective project directories:
+
+```powershell
+cd FDE_Project_Codebase\vastra-legacy-lab
+..\..\.venv\Scripts\python.exe -m pytest -q tests\test_legacy_characterisation.py -k "three_pricing_copies or sale_ends_later"
+
+cd ..\vastra-modern-api
+..\..\.venv\Scripts\python.exe -m pytest -q tests\test_pricing_policy.py -k documented_price
+```
+
+The legacy test asserts the three exact channel totals and the app's late sale-expiry defect. The
+modern parameterized test requests the same quote with the web, app and POS demo keys and verifies
+all three return ₹1,296 with the expected breakdown. Its fixed product fixture uses the document's
+prices and a future sale expiry so the test is repeatable. The locally seeded `SKU00003` can have
+different values; use the tests—not that seeded SKU—to prove the exact example.
 
 ### Stock ledger
 
@@ -301,19 +332,55 @@ curl -X POST "http://127.0.0.1:8200/v1/checkout" `
 
 ## Tests and demo
 
-Run the API test suite:
+Each modern test file is a focused pytest program for a specific modernization fix:
+
+| Test program | Behavior covered |
+|---|---|
+| `test_service_health.py` | Service health endpoint |
+| `test_api_workbench.py` | Browser workbench is served |
+| `test_catalogue_api.py` | Catalogue authentication, product response and caching headers |
+| `test_pricing_policy.py` | One price and calculation breakdown across web, app and POS |
+| `test_stock_ledger.py` | Live stock changes, duplicate event protection, negative-stock rejection and roles |
+| `test_price_overrides.py` | Named override auditing, store scope and role protection |
+| `test_outbox_events.py` | Stock integration events and ERP-only feed access |
+| `test_checkout.py` | Required idempotency key, retry behavior, oversell rejection, payment failure stock release, courier fallback and order outbox event |
+
+The tests use `tests/conftest.py` to create a fresh temporary SQLite database and a predictable
+SKU00003 fixture for every test. They call the application through FastAPI's test client and mock
+partner calls where needed; the three local services do not need to be running to execute the
+modern API test suite.
+
+Run any one program on its own from the modern API directory:
 
 ```powershell
 cd FDE_Project_Codebase\vastra-modern-api
-..\..\.venv\Scripts\python.exe -m pytest -q tests\test_api.py
+..\..\.venv\Scripts\python.exe -m pytest -q tests\test_service_health.py
+..\..\.venv\Scripts\python.exe -m pytest -q tests\test_api_workbench.py
+..\..\.venv\Scripts\python.exe -m pytest -q tests\test_catalogue_api.py
+..\..\.venv\Scripts\python.exe -m pytest -q tests\test_pricing_policy.py
+..\..\.venv\Scripts\python.exe -m pytest -q tests\test_stock_ledger.py
+..\..\.venv\Scripts\python.exe -m pytest -q tests\test_price_overrides.py
+..\..\.venv\Scripts\python.exe -m pytest -q tests\test_outbox_events.py
+..\..\.venv\Scripts\python.exe -m pytest -q tests\test_checkout.py
 ```
 
-Run the legacy characterization and UI tests:
+Run all modern test programs together (currently **21 tests**):
+
+```powershell
+..\..\.venv\Scripts\python.exe -m pytest -q tests
+```
+
+The legacy characterization suite has its own fixture and tests the original application
+behavior, including intentional defects. Run it from the legacy lab directory:
 
 ```powershell
 cd FDE_Project_Codebase\vastra-legacy-lab
 ..\..\.venv\Scripts\python.exe -m pytest -q tests\test_legacy_characterisation.py
 ```
+
+The legacy tests use `TestClient` and an isolated temporary database. They mock the partner stub
+for checkout tests, so ports 8000 and 8100 do not need to be running. The suite currently has
+**8 tests**.
 
 The browser pages are useful for manual comparison:
 

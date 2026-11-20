@@ -31,7 +31,7 @@ def test_three_pricing_copies_disagree_on_the_same_cart():
         "app": app_api.price(SALE_ITEM, coupon_pct=10, member=True, now=NOW),
         "pos": pricing_pos.price(SALE_ITEM, coupon_pct=10, member=True, now=NOW),
     }
-    assert len(set(prices.values())) == 3, prices        # R4: three answers for one cart
+    assert prices == {"web": 1296, "app": 1440, "pos": 1600}
 
 
 def test_monolith_root_lists_local_endpoints(client):

@@ -17,6 +17,35 @@ changed by this API project.
 | Integrations | Orders are exported through a nightly batch | Order and stock changes create outbox events exposed through `/v1/events` |
 | Database | One legacy database used by the monolith and jobs | API-owned SQLite tables; legacy product/stock data can be bootstrapped read-only |
 
+## Pricing example from the design
+
+For a base price of ₹2,000, an active sale price of ₹1,600, a 10% coupon, and a 10% member
+discount, the characterized legacy rules produce:
+
+| Channel | Legacy result | Modern API result |
+|---|---:|---:|
+| Website | ₹1,296 | ₹1,296 |
+| Mobile app | ₹1,440 | ₹1,296 |
+| Store POS | ₹1,600 | ₹1,296 |
+
+The modern policy applies the coupon to the sale price, then applies the member discount:
+`₹1,600 × 0.90 = ₹1,440`; `₹1,440 × 0.90 = ₹1,296`. The active sale is determined from its
+UTC expiry. The test fixtures use a future sale expiry to make this calculation deterministic.
+
+Run the tests that prove this behavior from the repository root:
+
+```powershell
+cd FDE_Project_Codebase\vastra-legacy-lab
+..\..\.venv\Scripts\python.exe -m pytest -q tests\test_legacy_characterisation.py -k "three_pricing_copies or sale_ends_later"
+
+cd ..\vastra-modern-api
+..\..\.venv\Scripts\python.exe -m pytest -q tests\test_api.py -k "documented_price or one_pricing_engine"
+```
+
+The legacy test asserts the exact three channel totals and the app's late sale expiry behavior.
+The modern API test calls the same price endpoint with the web, app and POS demo keys and asserts
+the ₹1,296 total and each step of the breakdown.
+
 ## Code examples
 
 ### Pricing: channel-specific rules vs one quote function
