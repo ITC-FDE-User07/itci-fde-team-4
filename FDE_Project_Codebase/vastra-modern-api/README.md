@@ -3,6 +3,9 @@
 A FastAPI strangle-service for the Vastra legacy estate. It provides versioned catalogue, pricing,
 stock, checkout, override/audit and integration event APIs.
 
+For a concise comparison with the legacy behavior and side-by-side code snippets, see
+[Legacy vs Modern API](./LEGACY-VS-MODERN.md).
+
 ## Run locally
 
 ```powershell
