@@ -280,6 +280,36 @@ deleting the local container database state. The explicit `default` context avoi
 engine error observed in this development environment; omit `--context default` if your active
 Docker context is healthy.
 
+### Hands-on Kubernetes deployment
+
+The local Kubernetes manifests are in `FDE_Project_Codebase/kubernetes/local-stack.yaml`. The
+legacy and modern API Deployments are fixed to one replica each because they use SQLite. A PVC
+persists the legacy database and is mounted read-only by the modern API for initial bootstrap; a
+second PVC persists the modern API database. The NGINX gateway is exposed with a local port-forward.
+
+From the repository root, build and import the local images, apply the manifests, wait for the
+Deployments, and forward the gateway port:
+
+```powershell
+.\FDE_Project_Codebase\kubernetes\load-images.ps1
+kubectl apply -f FDE_Project_Codebase\kubernetes\local-stack.yaml
+kubectl rollout status deployment/partners -n vastra
+kubectl rollout status deployment/legacy -n vastra
+kubectl rollout status deployment/modern-api -n vastra
+kubectl rollout status deployment/gateway -n vastra
+kubectl port-forward -n vastra service/gateway 8081:8080
+```
+
+The helper imports locally built images into the control-plane node's containerd image store using a
+temporary privileged node-debug pod, then removes the pod. Workloads using those images are pinned
+to that node; the PVC-backed SQLite APIs remain at one replica. Port 8081 avoids a conflict with
+the Compose gateway on port 8080.
+
+Use `http://127.0.0.1:8081/ui/` for the modern workbench and
+`http://127.0.0.1:8081/legacy/test-ui/` for the legacy test page. Inspect resources with
+`kubectl get pods,services,pvc -n vastra`. `kubectl delete -f FDE_Project_Codebase\kubernetes\local-stack.yaml`
+removes the namespace resources, including the PVCs and their local demo data.
+
 ### Direct local development (without containers)
 
 To run the modern API directly, start the partner stub separately and run Uvicorn on port 8200:

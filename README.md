@@ -32,3 +32,43 @@ non-container setup are described in the [modern API README](FDE_Project_Codebas
 This development machine's `desktop-linux` Docker context returned an engine error, so the commands
 above explicitly use the working `default` context. On a machine where the current Docker context
 is healthy, `docker compose up --build` and `docker compose down` are equivalent.
+
+## Hands-on Kubernetes deployment
+
+The local Kubernetes deployment runs the same four services in the `vastra` namespace. The legacy
+and modern APIs are intentionally fixed at **one replica each** because they use SQLite. A local
+PVC stores the legacy SQLite file shared read-only with the modern API, and a separate PVC stores
+the modern API database.
+
+From the repository root, build and import the application images into the local Docker Desktop
+Kubernetes cluster:
+
+```powershell
+.\FDE_Project_Codebase\kubernetes\load-images.ps1
+```
+
+The helper imports the locally built images into the cluster's containerd cache on its control-plane
+node and removes its temporary debug pod when finished. The application pods are pinned to that
+node so the local images and SQLite storage stay available. Apply the manifests and wait for each
+deployment:
+
+```powershell
+kubectl apply -f FDE_Project_Codebase\kubernetes\local-stack.yaml
+kubectl rollout status deployment/partners -n vastra
+kubectl rollout status deployment/legacy -n vastra
+kubectl rollout status deployment/modern-api -n vastra
+kubectl rollout status deployment/gateway -n vastra
+```
+
+In another terminal, forward the gateway and open the same UI and API routes:
+
+```powershell
+kubectl port-forward -n vastra service/gateway 8081:8080
+```
+
+Use `http://127.0.0.1:8081/ui/` for the modern API workbench and
+`http://127.0.0.1:8081/legacy/test-ui/` for the legacy test page. Port 8081 avoids a conflict with
+the Docker Compose gateway on 8080. Check status with
+`kubectl get pods,services,pvc -n vastra`. Keep both API deployments at one replica for this
+SQLite demo. To remove the deployment, run `kubectl delete -f FDE_Project_Codebase\kubernetes\local-stack.yaml`;
+deleting the PVCs also removes this local demo's database data.

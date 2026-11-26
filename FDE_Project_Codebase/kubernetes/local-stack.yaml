@@ -1,0 +1,376 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vastra
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: legacy-data
+  namespace: vastra
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: modern-data
+  namespace: vastra
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: legacy-config
+  namespace: vastra
+data:
+  config.ini: |
+    [database]
+    path = data/vastra_legacy.db
+    user = vastra_admin
+    password = local-demo-only
+
+    [partners]
+    base_url = http://partners:8100
+
+    [back_office]
+    admin_logins = admin1,admin2,admin3,admin4
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: vastra
+data:
+  default.conf: |
+    log_format vastra '$remote_addr [$time_local] "$request" $status $request_time rid=$request_id upstream=$upstream_addr';
+
+    upstream legacy_monolith { server legacy:8000; }
+    upstream new_services { server modern-api:8200; }
+
+    server {
+        listen 8080;
+        access_log /var/log/nginx/vastra_access.log vastra;
+
+        location = / { return 302 /ui/; }
+
+        location /legacy/ {
+            proxy_set_header X-Request-ID $request_id;
+            proxy_set_header Host $host;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_pass http://legacy_monolith/;
+        }
+
+        location /v1/ {
+            proxy_set_header X-Request-ID $request_id;
+            proxy_set_header Host $host;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_read_timeout 10s;
+            proxy_pass http://new_services/v1/;
+        }
+
+        location /ui/ {
+            proxy_set_header X-Request-ID $request_id;
+            proxy_set_header Host $host;
+            proxy_pass http://new_services/ui/;
+        }
+
+        location = /docs {
+            proxy_set_header X-Request-ID $request_id;
+            proxy_set_header Host $host;
+            proxy_pass http://new_services/docs;
+        }
+
+        location = /openapi.json {
+            proxy_set_header X-Request-ID $request_id;
+            proxy_set_header Host $host;
+            proxy_pass http://new_services/openapi.json;
+        }
+
+        location = /health { return 200 "gateway ok\n"; }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: partners
+  namespace: vastra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: partners
+  template:
+    metadata:
+      labels:
+        app: partners
+    spec:
+      nodeSelector:
+        vastra.local/image-cache: "true"
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: partners
+          image: vastra-legacy:local
+          imagePullPolicy: Never
+          command: ["uvicorn", "app.partners.stubs:app", "--host", "0.0.0.0", "--port", "8100"]
+          ports:
+            - name: http
+              containerPort: 8100
+          env:
+            - name: LATENCY_SCALE
+              value: "0.01"
+            - name: PAYMENT_FAIL_RATE
+              value: "0"
+          readinessProbe:
+            httpGet:
+              path: /docs
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /docs
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: partners
+  namespace: vastra
+spec:
+  selector:
+    app: partners
+  ports:
+    - name: http
+      port: 8100
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: legacy
+  namespace: vastra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: legacy
+  template:
+    metadata:
+      labels:
+        app: legacy
+    spec:
+      nodeSelector:
+        vastra.local/image-cache: "true"
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: legacy
+          image: vastra-legacy:local
+          imagePullPolicy: Never
+          command:
+            - sh
+            - -c
+            - if [ ! -f data/vastra_legacy.db ]; then python -m app.db; fi; exec uvicorn app.monolith:app --host 0.0.0.0 --port 8000
+          ports:
+            - name: http
+              containerPort: 8000
+          volumeMounts:
+            - name: legacy-data
+              mountPath: /app/data
+            - name: legacy-config
+              mountPath: /app/config.ini
+              subPath: config.ini
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: legacy-data
+          persistentVolumeClaim:
+            claimName: legacy-data
+        - name: legacy-config
+          configMap:
+            name: legacy-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: legacy
+  namespace: vastra
+spec:
+  selector:
+    app: legacy
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: modern-api
+  namespace: vastra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: modern-api
+  template:
+    metadata:
+      labels:
+        app: modern-api
+    spec:
+      nodeSelector:
+        vastra.local/image-cache: "true"
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      initContainers:
+        - name: wait-for-legacy-database
+          image: vastra-legacy:local
+          imagePullPolicy: Never
+          command:
+            - sh
+            - -c
+            - until [ -s /legacy-data/vastra_legacy.db ]; do echo waiting for legacy SQLite seed; sleep 2; done
+          volumeMounts:
+            - name: legacy-data
+              mountPath: /legacy-data
+              readOnly: true
+      containers:
+        - name: modern-api
+          image: vastra-modern-api:local
+          imagePullPolicy: Never
+          ports:
+            - name: http
+              containerPort: 8200
+          env:
+            - name: VASTRA_PARTNERS_URL
+              value: http://partners:8100
+            - name: VASTRA_LEGACY_DB
+              value: /legacy-data/vastra_legacy.db
+          volumeMounts:
+            - name: modern-data
+              mountPath: /app/data
+            - name: legacy-data
+              mountPath: /legacy-data
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /v1/health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /v1/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: modern-data
+          persistentVolumeClaim:
+            claimName: modern-data
+        - name: legacy-data
+          persistentVolumeClaim:
+            claimName: legacy-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: modern-api
+  namespace: vastra
+spec:
+  selector:
+    app: modern-api
+  ports:
+    - name: http
+      port: 8200
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: vastra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: nginx-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: vastra
+spec:
+  type: ClusterIP
+  selector:
+    app: gateway
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

@@ -9,6 +9,8 @@ Modern APIs, both browser test pages, tests, comparison notes and a migration pl
 implemented. The legacy monolith and the modern API are intended to run beside each other so that
 the old and new behavior can be compared. A root `docker-compose.yml` now builds and runs the
 partner stub, legacy monolith, modern API, and NGINX gateway as a local container stack.
+An additional `FDE_Project_Codebase/kubernetes/local-stack.yaml` provides a local hands-on
+Kubernetes deployment with persistent claims and one replica per SQLite-backed API.
 
 The comprehensive setup and architecture guide is in [README.md](./README.md).
 
@@ -42,6 +44,8 @@ Start the container stack from the repository root with
 - `vastra-modern-api/app/db.py`: API schema and initial read-only bootstrap from legacy SQLite.
 - `vastra-modern-api/app/static/index.html`: modern browser test workbench and smoke tests.
 - `docker-compose.yml`: local four-service container stack, health checks, and persistent database volumes.
+- `kubernetes/local-stack.yaml`: namespace-scoped deployments, services, health probes, config maps, and persistent claims for a local Kubernetes cluster.
+- `kubernetes/load-images.ps1`: builds the local app images and imports them into Docker Desktop Kubernetes containerd.
 - `vastra-legacy-lab/Dockerfile`, `vastra-modern-api/Dockerfile`: images for the legacy/partner services and modern API.
 - `gateway/nginx.conf`: NGINX routing for legacy paths, versioned API paths, test UI, docs, and gateway health.
 - `.env.example` and root `.gitignore`: local partner tuning template and exclusion of local environment/bytecode files.
@@ -67,6 +71,14 @@ Start the container stack from the repository root with
   legacy UI/product/pricing, and a successful paid checkout were smoke-tested.
 - In this Windows environment the `desktop-linux` context returned an engine error; the working
   `default` context was used for compose commands.
+- Docker Desktop Kubernetes is available on the `docker-desktop` kubectl context. The Kubernetes
+  manifests provide partner, legacy, modern API, and NGINX Deployments, readiness/liveness probes,
+  persistent SQLite claims, and one replica per API.
+- Built-in Docker images are separate from Docker Desktop Kubernetes' containerd cache. The image
+  helper imports images into the control-plane node and removes its temporary privileged debug pod;
+  app workloads are pinned to that node. The four Kubernetes Deployments became healthy, both UIs,
+  docs, health and legacy paths returned HTTP 200 through a port-forward, and modern checkout
+  completed as paid. Port-forward used local port 8081 because Compose already uses 8080.
 
 ## Design section 2.3: pricing example and proof
 
@@ -119,6 +131,9 @@ exact numbers. More detail is in [LEGACY-VS-MODERN.md](./LEGACY-VS-MODERN.md).
 - Confirm production pricing policy, stock ownership, operational rollback, and monitoring requirements.
 - Revisit `MIGRATION.md` stage gates and traffic percentages with the Vastra teams before treating
   the plan as committed delivery dates.
+- For Kubernetes hands-on use, build the local images and apply
+  `FDE_Project_Codebase/kubernetes/local-stack.yaml` using the steps in the README; keep the
+  SQLite-backed APIs at one replica. Re-run the image helper if the Docker Desktop cluster resets.
 
 ## Test programs and commands
 
