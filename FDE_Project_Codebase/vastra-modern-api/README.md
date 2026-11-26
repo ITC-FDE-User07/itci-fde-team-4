@@ -30,7 +30,7 @@ OAuth2/OIDC.
 ```mermaid
 flowchart LR
     Channels["Web / App / POS / Warehouse / ERP"]
-    Gateway["NGINX gateway :8080 (optional)"]
+    Gateway["NGINX gateway :8080"]
     Legacy["Legacy monolith :8000"]
     API["Vastra API v1 :8200"]
     Partners["Partner stubs :8100"]
@@ -51,9 +51,11 @@ flowchart LR
     ModernDB -->|outbox via GET /v1/events| ERP
 ```
 
-In the local setup the services can be called directly on ports 8000, 8100 and 8200. The optional
-NGINX configuration is in `FDE_Project_Codebase/gateway/nginx.conf`; it routes `/legacy/*` and
-`/v1/*` traffic to the corresponding services.
+In the container setup, NGINX is the local entry point on port 8080. It routes `/legacy/*` to the
+legacy monolith, `/v1/*` to the modern API, and exposes the modern workbench and docs. The Compose
+file at the repository root builds and runs all services with persistent SQLite volumes. For
+direct local development without containers, the services can also be run on ports 8000, 8100 and
+8200.
 
 ## Functional flow
 
@@ -84,9 +86,11 @@ flowchart TD
     Override --> Audit["Save override and audit entry"]
     Route -- "GET audit / events" --> ReadRecords["Return audit records or outbox events"]
 
-    Route -- "POST checkout" --> Idempotency{"Completed order for this key?"}
-    Idempotency -- Yes --> Original["Return saved response"]
-    Idempotency -- No --> Reserve{"Reserve stock atomically"}
+    Route -- "POST checkout" --> Idempotency{"Key already claimed?"}
+    Idempotency -- Completed / same payload --> Original["Return saved response"]
+    Idempotency -- In progress --> InProgress["409; reconcile before retry"]
+    Idempotency -- Different payload --> Mismatch["409; key belongs to another request"]
+    Idempotency -- New key --> Reserve{"Claim key and reserve stock atomically"}
     Reserve -- "Insufficient" --> Conflict["409 out of stock"]
     Reserve -- Available --> Courier["Courier request, 0.8 s timeout"]
     Courier -- Timeout --> Fallback["Use estimated delivery fallback"]
@@ -161,10 +165,18 @@ outbox event are committed together.
 
 ### Checkout
 
-`POST /v1/checkout` requires an `Idempotency-Key`. It checks for a completed order with that key,
-reserves live API-ledger stock, requests a courier promise, and then requests payment. If payment
-fails, it releases the stock reservation. Successful orders create an `order.created` outbox
+`POST /v1/checkout` requires an `Idempotency-Key`. The API persists a request claim before
+contacting partners, reserves live API-ledger stock, requests a courier promise, and then requests
+payment. A completed retry with the same key and payload returns the stored result; concurrent
+retries receive `409`, and reusing a key with a different payload also receives `409`. If payment
+fails, the API releases the stock reservation. Successful orders create an `order.created` outbox
 event.
+
+An attempt left `in_progress` by a process crash is deliberately not replayed: the API returns
+`409` and requires the operator to reconcile the reservation and payment with the partner before
+taking action. This avoids an automatic duplicate charge when payment outcome is ambiguous, but
+there is no reconciliation workflow yet. Production recovery requires a provider contract for
+idempotent payment retries or payment-status lookup.
 
 Checkout is state-changing and calls the payment partner. Only exercise it against local test
 services. Courier and payment calls are time-bounded, but currently happen sequentially.
@@ -196,7 +208,14 @@ python -m pip install -r FDE_Project_Codebase\vastra-modern-api\requirements.txt
 ```
 
 The modern requirements include the shared FastAPI, Uvicorn, HTTPX and pytest dependencies used
-for this local lab.
+for this local lab, plus `python-dotenv` so Uvicorn can load the repository-root `.env` file.
+
+The local `.env` contains settings for both the partner stub and modern API. It is ignored by Git;
+the matching `.env.example` is the template to copy when setting up another checkout:
+
+```powershell
+Copy-Item .env.example .env
+```
 
 ### 2. Create and seed the legacy database
 
@@ -218,7 +237,7 @@ In a new terminal from the legacy lab directory:
 cd FDE_Project_Codebase\vastra-legacy-lab
 $env:LATENCY_SCALE = "0.01"
 $env:PAYMENT_FAIL_RATE = "0"
-..\..\.venv\Scripts\python.exe -m uvicorn app.partners.stubs:app --host 127.0.0.1 --port 8100
+..\..\.venv\Scripts\python.exe -m uvicorn app.partners.stubs:app --host 127.0.0.1 --port 8100 --env-file ..\..\.env
 ```
 
 The lower latency and zero failure rate are convenient for a local demonstration; remove or
@@ -230,7 +249,7 @@ In another terminal:
 
 ```powershell
 cd FDE_Project_Codebase\vastra-legacy-lab
-..\..\.venv\Scripts\python.exe -m uvicorn app.monolith:app --host 127.0.0.1 --port 8000
+..\..\.venv\Scripts\python.exe -m uvicorn app.monolith:app --host 127.0.0.1 --port 8000 --env-file ..\..\.env
 ```
 
 Legacy pages:
@@ -239,22 +258,38 @@ Legacy pages:
 - Service endpoint list: `http://127.0.0.1:8000/`
 - OpenAPI docs: `http://127.0.0.1:8000/docs`
 
-### 5. Start the modern API
+### Container deployment
 
-In a separate terminal:
+From the repository root, start the full local stack:
+
+```powershell
+docker --context default compose up --build
+```
+
+The NGINX gateway is available on port 8080:
+
+- API test workbench: `http://127.0.0.1:8080/ui/`
+- OpenAPI docs: `http://127.0.0.1:8080/docs`
+- API health: `http://127.0.0.1:8080/v1/health`
+- Legacy test page: `http://127.0.0.1:8080/legacy/test-ui/`
+
+Compose health-checks the services before starting the gateway. The SQLite databases are stored in
+named Docker volumes. `docker --context default compose down` stops and removes containers but
+retains those volumes. Use `docker --context default compose down -v` only when intentionally
+deleting the local container database state. The explicit `default` context avoids a Docker Desktop
+engine error observed in this development environment; omit `--context default` if your active
+Docker context is healthy.
+
+### Direct local development (without containers)
+
+To run the modern API directly, start the partner stub separately and run Uvicorn on port 8200:
 
 ```powershell
 cd FDE_Project_Codebase\vastra-modern-api
-$env:VASTRA_LEGACY_DB = "..\vastra-legacy-lab\data\vastra_legacy.db"
-$env:VASTRA_PARTNERS_URL = "http://127.0.0.1:8100"
-..\..\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8200
+..\..\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8200 --env-file ..\..\.env
 ```
 
-Modern pages:
-
-- API test workbench: `http://127.0.0.1:8200/ui/`
-- OpenAPI docs: `http://127.0.0.1:8200/docs`
-- Health: `http://127.0.0.1:8200/v1/health`
+Direct local pages are at `http://127.0.0.1:8200/ui/` and `http://127.0.0.1:8200/docs`.
 
 If `VASTRA_LEGACY_DB` is set, startup copies products and initial `stock_copy` quantities into the
 API database using a read-only connection to the legacy database. Existing API rows are preserved
@@ -343,7 +378,7 @@ Each modern test file is a focused pytest program for a specific modernization f
 | `test_stock_ledger.py` | Live stock changes, duplicate event protection, negative-stock rejection and roles |
 | `test_price_overrides.py` | Named override auditing, store scope and role protection |
 | `test_outbox_events.py` | Stock integration events and ERP-only feed access |
-| `test_checkout.py` | Required idempotency key, retry behavior, oversell rejection, payment failure stock release, courier fallback and order outbox event |
+| `test_checkout.py` | Required idempotency key, concurrent and restart retry behavior, key/payload mismatch, oversell rejection, payment failure stock release, courier fallback and order outbox event |
 
 The tests use `tests/conftest.py` to create a fresh temporary SQLite database and a predictable
 SKU00003 fixture for every test. They call the application through FastAPI's test client and mock
@@ -407,9 +442,9 @@ calls using the same key return the previously completed order.
 - **Authentication:** API keys and `X-User` are demo-only; use managed secrets and OAuth2/OIDC.
 - **Database:** SQLite is for the local lab; production reservations require PostgreSQL and tested
   transaction/locking behavior.
-- **Checkout recovery:** Idempotency stores completed responses only. It does not persist an
-  in-progress state or recover safely from a process failure after external payment but before
-  recording the order.
+- **Checkout recovery:** The API persists in-progress keys and rejects retries after a crash for
+  manual reconciliation. It does not yet provide an operator reconciliation workflow for stock
+  reservations or an ambiguous payment outcome.
 - **Payment provider:** The idempotency key is forwarded, but the included payment stub ignores
   it. End-to-end duplicate-charge safety requires provider support and reconciliation.
 - **Partner order:** Courier and payment calls are sequential, not parallel. Each has a timeout,
@@ -420,8 +455,8 @@ calls using the same key return the previously completed order.
   replication. Production cutover needs reconciliation and a defined single-writer point.
 - **Pricing policy:** The order of coupon and member discounts is a demo policy and requires
   business approval.
-- **Gateway:** The NGINX configuration is present as a routing example and is not required for
-  direct local testing.
+- **Gateway:** The local container stack runs NGINX on port 8080. Direct development can bypass it
+  and call the services on their individual ports.
 
 ## Related documents
 

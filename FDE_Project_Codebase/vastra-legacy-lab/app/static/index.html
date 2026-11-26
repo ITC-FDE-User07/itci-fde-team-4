@@ -107,19 +107,23 @@
       <pre id="result">Endpoint responses will appear here.</pre>
     </section>
     <nav class="links" aria-label="Related pages">
-      <a href="/">Legacy service info</a>
-      <a href="/docs">Legacy OpenAPI docs</a>
-      <a href="http://127.0.0.1:8200/ui/">Modern API test workbench</a>
+      <a id="legacy-home-link" href="/">Legacy service info</a>
+      <a id="legacy-docs-link" href="/docs">Legacy OpenAPI docs</a>
+      <a id="modern-workbench-link" href="/ui/">Modern API test workbench</a>
     </nav>
   </main>
   <script>
     const $ = (id) => document.getElementById(id);
     const result = $("result");
     const status = $("status");
+    const legacyPrefix = window.location.pathname.startsWith("/legacy/") ? "/legacy" : "";
+    $("legacy-home-link").href = `${legacyPrefix}/`;
+    $("legacy-docs-link").href = `${legacyPrefix}/docs`;
+    $("modern-workbench-link").href = `${window.location.origin}/ui/`;
 
     async function send(path, options = {}) {
       try {
-        const response = await fetch(path, options);
+        const response = await fetch(`${legacyPrefix}${path}`, options);
         const body = await response.text();
         let payload;
         try { payload = body ? JSON.parse(body) : null; }

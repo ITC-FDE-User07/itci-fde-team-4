@@ -62,6 +62,13 @@ def init_db(legacy_db: str | None = None) -> None:
             status TEXT NOT NULL,
             response_json TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS checkout_attempts (
+            idempotency_key TEXT PRIMARY KEY,
+            request_hash TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            response_json TEXT
+        );
         CREATE TABLE IF NOT EXISTS price_overrides (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             sku TEXT NOT NULL,

@@ -1,0 +1,82 @@
+services:
+  legacy:
+    build:
+      context: ./FDE_Project_Codebase/vastra-legacy-lab
+    command:
+      - sh
+      - -c
+      - if [ ! -f data/vastra_legacy.db ]; then python -m app.db; fi; exec uvicorn app.monolith:app --host 0.0.0.0 --port 8000
+    volumes:
+      - legacy-data:/app/data
+    depends_on:
+      partners:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/').read()"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    expose:
+      - "8000"
+
+  partners:
+    build:
+      context: ./FDE_Project_Codebase/vastra-legacy-lab
+    command: ["uvicorn", "app.partners.stubs:app", "--host", "0.0.0.0", "--port", "8100"]
+    environment:
+      LATENCY_SCALE: ${LATENCY_SCALE:-0.01}
+      PAYMENT_FAIL_RATE: ${PAYMENT_FAIL_RATE:-0}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/docs').read()"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    expose:
+      - "8100"
+
+  modern-api:
+    build:
+      context: ./FDE_Project_Codebase/vastra-modern-api
+    environment:
+      VASTRA_PARTNERS_URL: http://partners:8100
+      VASTRA_LEGACY_DB: /legacy-data/vastra_legacy.db
+    volumes:
+      - modern-data:/app/data
+      - legacy-data:/legacy-data:ro
+    depends_on:
+      legacy:
+        condition: service_healthy
+      partners:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8200/v1/health').read()"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    expose:
+      - "8200"
+
+  gateway:
+    image: nginx:1.27-alpine
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./FDE_Project_Codebase/gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      legacy:
+        condition: service_healthy
+      modern-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+volumes:
+  legacy-data:
+  modern-data:

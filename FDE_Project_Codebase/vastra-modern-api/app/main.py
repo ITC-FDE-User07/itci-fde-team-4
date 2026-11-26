@@ -16,7 +16,6 @@ from fastapi.staticfiles import StaticFiles
 
 from .db import connect, init_db
 
-
 PARTNERS_URL = os.getenv("VASTRA_PARTNERS_URL", "http://localhost:8100")
 LEGACY_DB = os.getenv("VASTRA_LEGACY_DB")
 
@@ -319,6 +318,9 @@ async def checkout(
     if len(idempotency_key.strip()) < 8:
         raise HTTPException(400, "Idempotency-Key must be at least 8 characters")
 
+    request_hash = hashlib.sha256(
+        json.dumps(c.model_dump(), sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
     p = product(c.sku)
     quote = quote_price(p, c.coupon_pct, c.member, c.store_id)
     total = quote["unit_price"] * c.qty
@@ -326,21 +328,40 @@ async def checkout(
     con = connect()
     con.execute("BEGIN IMMEDIATE")
     existing = con.execute(
-        "SELECT response_json FROM orders WHERE idempotency_key=?", (idempotency_key,)
+        "SELECT request_hash, status, response_json FROM checkout_attempts WHERE idempotency_key=?",
+        (idempotency_key,),
     ).fetchone()
+    if existing is None:
+        legacy_order = con.execute(
+            "SELECT response_json FROM orders WHERE idempotency_key=?", (idempotency_key,)
+        ).fetchone()
+        if legacy_order:
+            con.close()
+            return json.loads(legacy_order["response_json"])
     if existing:
         con.close()
-        return json.loads(existing["response_json"])
+        if existing["request_hash"] != request_hash:
+            raise HTTPException(409, "Idempotency-Key was already used for a different request")
+        if existing["status"] == "in_progress":
+            raise HTTPException(409, "checkout is already in progress; reconcile before retrying")
+        if existing["status"] == "completed" and existing["response_json"]:
+            return json.loads(existing["response_json"])
+        raise HTTPException(500, "checkout attempt has an invalid persisted state")
 
     stock = con.execute("SELECT qty FROM stock WHERE sku=?", (c.sku,)).fetchone()
     if stock is None or stock["qty"] < c.qty:
         con.close()
         raise HTTPException(409, "out of stock")
+    created = now_iso()
+    con.execute(
+        "INSERT INTO checkout_attempts "
+        "(idempotency_key, request_hash, status, created_at) VALUES (?, ?, 'in_progress', ?)",
+        (idempotency_key, request_hash, created),
+    )
     remaining = stock["qty"] - c.qty
     con.execute("UPDATE stock SET qty=?, updated_at=? WHERE sku=?", (remaining, now_iso(), c.sku))
 
     reservation_id = str(uuid.uuid4())
-    created = now_iso()
     con.execute(
         "INSERT INTO reservations (reservation_id, sku, qty, status, created_at) VALUES (?, ?, ?, ?, ?)",
         (reservation_id, c.sku, c.qty, "reserved", created),
@@ -391,6 +412,10 @@ async def checkout(
     con.execute(
         "INSERT INTO orders (order_ref, idempotency_key, created_at, channel, sku, qty, total, status, response_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (order_ref, idempotency_key, created, c.channel, c.sku, c.qty, total, status, json.dumps(response)),
+    )
+    con.execute(
+        "UPDATE checkout_attempts SET status='completed', response_json=? WHERE idempotency_key=?",
+        (json.dumps(response), idempotency_key),
     )
     con.execute(
         "INSERT INTO checkout_payments (order_ref, idempotency_key, charge_id, status, amount, created_at) VALUES (?, ?, ?, ?, ?, ?)",

@@ -1,13 +1,14 @@
 # Vastra API v1 — Session Handoff
 
-Updated: 2026-11-20
+Updated: 2026-11-26
 
 ## Goal and current state
 
 The workspace contains a runnable legacy ecommerce lab and a separate Vastra API v1 service.
 Modern APIs, both browser test pages, tests, comparison notes and a migration plan have been
 implemented. The legacy monolith and the modern API are intended to run beside each other so that
-the old and new behavior can be compared.
+the old and new behavior can be compared. A root `docker-compose.yml` now builds and runs the
+partner stub, legacy monolith, modern API, and NGINX gateway as a local container stack.
 
 The comprehensive setup and architecture guide is in [README.md](./README.md).
 
@@ -17,6 +18,10 @@ When the local services are running:
 
 | Service | Address |
 |---|---|
+| NGINX gateway | `http://127.0.0.1:8080` |
+| Modern API workbench (through gateway) | `http://127.0.0.1:8080/ui/` |
+| Modern API docs (through gateway) | `http://127.0.0.1:8080/docs` |
+| Legacy test page (through gateway) | `http://127.0.0.1:8080/legacy/test-ui/` |
 | Partner stubs | `http://127.0.0.1:8100` |
 | Legacy monolith | `http://127.0.0.1:8000` |
 | Legacy browser test page | `http://127.0.0.1:8000/test-ui/` |
@@ -24,9 +29,9 @@ When the local services are running:
 | Modern API workbench | `http://127.0.0.1:8200/ui/` |
 | Modern OpenAPI docs | `http://127.0.0.1:8200/docs` |
 
-At the last status check, ports 8000, 8100 and 8200 were listening. After source changes, restart
-the corresponding Uvicorn process if hot reload is not enabled. The integrated browser had the
-legacy test UI open at `http://127.0.0.1:8000/test-ui/`.
+Start the container stack from the repository root with
+`docker --context default compose up --build`; stop it with
+`docker --context default compose down`. SQLite data is retained in named volumes.
 
 ## Implementation map
 
@@ -36,6 +41,10 @@ legacy test UI open at `http://127.0.0.1:8000/test-ui/`.
 - `vastra-modern-api/app/main.py`: modern API routes, pricing, access roles, stock movements, overrides, outbox, checkout.
 - `vastra-modern-api/app/db.py`: API schema and initial read-only bootstrap from legacy SQLite.
 - `vastra-modern-api/app/static/index.html`: modern browser test workbench and smoke tests.
+- `docker-compose.yml`: local four-service container stack, health checks, and persistent database volumes.
+- `vastra-legacy-lab/Dockerfile`, `vastra-modern-api/Dockerfile`: images for the legacy/partner services and modern API.
+- `gateway/nginx.conf`: NGINX routing for legacy paths, versioned API paths, test UI, docs, and gateway health.
+- `.env.example` and root `.gitignore`: local partner tuning template and exclusion of local environment/bytecode files.
 - `vastra-modern-api/tests/conftest.py`: shared isolated product/database fixture for focused API tests.
 - `vastra-modern-api/tests/test_*.py`: separate test programs for health, UI, catalogue, pricing, stock, overrides, outbox, and checkout.
 - `vastra-modern-api/demo.py`: sample quote and idempotent retry client.
@@ -45,13 +54,19 @@ legacy test UI open at `http://127.0.0.1:8000/test-ui/`.
 
 ## Validation completed
 
-- Modern API focused test programs: **21 passed** (including channel pricing, stock retries, audit, outbox, checkout failure/fallback and UI).
+- Modern API test suite: **24 passed** (including channel pricing, stock retries, audit, outbox, checkout concurrency/restart recovery and UI).
+- Checkout idempotency hardening adds persisted request claims, concurrent duplicate rejection, payload mismatch rejection, completed-result replay after database reinitialization, and safe rejection of stale in-progress attempts.
 - Legacy characterization suite after adding the legacy UI: **8 passed**.
 - Modern UI was opened in the integrated browser; read-only smoke tests passed **3/3**.
 - Legacy product and app-price controls were exercised in the browser and returned HTTP 200.
 - Legacy `/` route was confirmed to return a service/endpoints list instead of a 404.
 - Modern checkout was previously exercised against local partner stubs and a repeated request with
   the same completed idempotency key returned the original order.
+- Local Docker Compose deployment was built and started. All four services (NGINX, legacy,
+  partners, modern API) reported healthy. Through NGINX, gateway/API health, modern UI/docs,
+  legacy UI/product/pricing, and a successful paid checkout were smoke-tested.
+- In this Windows environment the `desktop-linux` context returned an engine error; the working
+  `default` context was used for compose commands.
 
 ## Design section 2.3: pricing example and proof
 
@@ -80,9 +95,10 @@ exact numbers. More detail is in [LEGACY-VS-MODERN.md](./LEGACY-VS-MODERN.md).
 
 1. Demo API keys are hard-coded; use a real identity provider and managed secret storage.
 2. The API uses SQLite; migrate to PostgreSQL and verify concurrency/locking semantics.
-3. Checkout has completed-result idempotency only; add persistent in-progress state and recovery
-   for crashes or ambiguous payment results.
-4. The local payment stub ignores the forwarded idempotency key; validate provider behavior.
+3. Crashed in-progress checkouts are rejected for manual reconciliation; no automatic recovery
+   workflow exists for reservations or ambiguous payment results.
+4. The local payment stub ignores the forwarded idempotency key; validate provider behavior before
+   enabling automated payment retries.
 5. Courier and payment are sequential; consider parallel orchestration only if business
    dependencies and payment/reservation semantics allow it.
 6. Outbox events are readable by polling, but there is no publisher/acknowledgment process.
@@ -94,8 +110,9 @@ exact numbers. More detail is in [LEGACY-VS-MODERN.md](./LEGACY-VS-MODERN.md).
 ## Suggested next continuation steps
 
 - Re-run both test commands from the README after any changes.
-- Add tests for simultaneous requests sharing an idempotency key and for process-restart recovery.
-- Decide and document the expected idempotency behavior of the real payment provider.
+- Define and implement an operator reconciliation workflow for persisted in-progress checkouts.
+- Decide and verify the real payment provider's idempotency and payment-status lookup behavior
+  before attempting automated recovery.
 - Replace `on_event("startup")` with a FastAPI lifespan handler to clear the current deprecation warning.
 - Review the checkout example/UI: the modern API requires a `coupon_pct` and member value; keep the
   pricing and checkout inputs clearly synchronized.
@@ -119,7 +136,7 @@ defects).
 | `test_stock_ledger.py` | Stock update, duplicate event retry, negative inventory rejection, role enforcement |
 | `test_price_overrides.py` | Named audit, store-scoped override, default price unaffected, role enforcement |
 | `test_outbox_events.py` | Stock update produces integration event; ERP role required |
-| `test_checkout.py` | Idempotency key validation, retry returns original completed order, oversell rejection, successful order outbox event, payment failure releases stock, courier fallback |
+| `test_checkout.py` | Idempotency key validation, completed retry, concurrent retry rejection, restart persistence, mismatched/stale key rejection, oversell rejection, successful order outbox event, payment failure stock release, courier fallback |
 | Legacy `test_legacy_characterisation.py` | Legacy channel pricing differences and timezone defect, root/test-page routes, sequential checkout trace, stale stock copy and duplicate payment behavior |
 
 Run the complete modern suite or an individual test program from the repository root, using the
@@ -141,6 +158,6 @@ cd ..\vastra-legacy-lab
 ..\..\.venv\Scripts\python.exe -m pytest -q tests\test_legacy_characterisation.py
 ```
 
-Most recently verified totals: modern **21 passed** and legacy **8 passed**. Pytest reports
+Most recently verified totals: modern **24 passed** and legacy **8 passed**. Pytest reports
 FastAPI/Starlette deprecation warnings for the current startup hook and dependency alias; these
 warnings do not fail the tests.
