@@ -1,0 +1,1 @@
+{"event_id": "wms:count:ST012:SKU00003:demo-001", "event_type": "stock.counted", "occurred_at": "2026-11-25T00:30:00Z", "source": "wms", "actor": "wms:cycle-count", "payload": {"sku": "SKU00003", "location_id": "ST012", "avail": 4, "on_order": 20}}

@@ -1,0 +1,35 @@
+# Catalogue entries for tables without their own contract file. Every table, every owner, every allowed purpose.
+tables:
+  - {table: raw.events, owner: Head of Data Engineering, source: load job (api-v1, pos, erp, wms, legacy),
+     classification: internal, purpose: [data_engineering],
+     description: Records exactly as received plus load time. Never edited. No personal details.}
+  - {table: clean.sales_lines, owner: Head of Retail Operations, source: raw.events sales.daily,
+     classification: internal, purpose: [data_engineering, analytics, replenishment]}
+  - {table: clean.orders, owner: Head of Ecommerce, source: raw.events order.*, classification: internal,
+     purpose: [data_engineering, analytics, orders]}
+  - {table: clean.stock_movements, owner: Head of Supply Chain, source: raw.events stock.moved,
+     classification: internal, purpose: [data_engineering, analytics, replenishment]}
+  - {table: clean.stock_counts, owner: Head of Supply Chain, source: raw.events stock.counted,
+     classification: internal, purpose: [data_engineering, analytics, replenishment]}
+  - {table: clean.purchase_orders, owner: Head of Supply Chain, source: raw.events po.raised,
+     classification: confidential, purpose: [data_engineering, replenishment]}
+  - {table: clean.goods_receipts, owner: Head of Supply Chain, source: raw.events goods.received,
+     classification: internal, purpose: [data_engineering, replenishment]}
+  - {table: clean.prices, owner: Head of Merchandising, source: raw.events price.changed, classification: internal,
+     purpose: [data_engineering, analytics, pricing, replenishment]}
+  - {table: clean.products, owner: Head of Merchandising, source: raw.events product.upserted,
+     classification: public, purpose: [data_engineering, analytics, pricing, replenishment]}
+  - {table: clean.stores, owner: Head of Retail Operations, source: raw.events store.upserted,
+     classification: internal, purpose: [data_engineering, analytics, replenishment]}
+  - {table: clean.customers, owner: Head of CRM and Loyalty (DPO consulted), source: raw.events customer.registered,
+     classification: personal, purpose: [orders, loyalty],
+     description: Tokens only. Marketing or personalisation use needs consent for that purpose per customer.}
+  - {table: gov.consent, owner: DPO, source: raw.events consent.changed and the DPO tool, classification: personal,
+     purpose: [data_principal_request, orders, loyalty, marketing, personalisation]}
+  - {table: gov.data_catalogue, owner: Head of Data Engineering, source: contracts/*.yaml, classification: internal,
+     purpose: [data_engineering, analytics, replenishment, data_principal_request]}
+  - {table: gov.access_log, owner: DPO, source: every governed read, erase and lookup, classification: confidential,
+     purpose: [data_principal_request, security_review]}
+  - {table: restricted.person_tokens, owner: DPO, source: load job (customer.registered), classification: personal,
+     purpose: [data_principal_request, customer_service],
+     description: The ONLY table with real name, phone and email. Deleting a row is erasure.}

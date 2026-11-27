@@ -1,0 +1,17 @@
+table: ready.product_master
+version: 1
+owner: Head of Merchandising
+purpose: [replenishment, stock_visibility, analytics, pricing]
+classification: public
+source: clean.products (ERP is the master; web, app and POS copies are compared for R12)
+description: One row per SKU. channels_agree = 1 when web, app and POS show the same name, category and colour as ERP.
+columns:
+  sku_id: {type: text, required: true}
+  name: {type: text, required: true}
+  category: {type: text, required: true}
+  colour: {type: text}
+  top500: {type: int, required: true, allowed: [0, 1]}
+  channels_agree: {type: int, required: true, allowed: [0, 1]}
+checks:
+  unique: [sku_id]
+changes: add columns only; renaming or removing a column needs a new version

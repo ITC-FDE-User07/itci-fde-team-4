@@ -1,0 +1,24 @@
+table: ready.sales_daily
+version: 1
+owner: Head of Ecommerce with Head of Retail Operations
+purpose: [replenishment, analytics]
+classification: internal
+source: clean.sales_lines on a full SKU x store x day grid, with ready.stock_position closing stock
+description: One row per top-500 SKU, store and IST business day. Zero-sale days are explicit rows. is_sold_out and
+  adjusted_demand correct censored demand (section 5.2).
+columns:
+  business_date: {type: date, required: true}
+  sku_id: {type: text, required: true}
+  location_id: {type: text, required: true}
+  store_tier: {type: text, required: true, allowed: [metro, tier-2, tier-3]}
+  units_sold: {type: int, required: true, min: 0}
+  net_amount: {type: int, required: true, min: 0}
+  has_pos_data: {type: int, required: true, allowed: [0, 1]}
+  closing_available: {type: int, required: true, min: 0}
+  is_sold_out: {type: int, required: true, allowed: [0, 1]}
+  adjusted_demand: {type: real, required: true, min: 0}
+checks:
+  unique: [business_date, sku_id, location_id]
+  fresh_within: 30 hours
+  fresh_column: business_date
+changes: add columns only; renaming or removing a column needs a new version

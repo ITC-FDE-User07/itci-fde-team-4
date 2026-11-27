@@ -1,0 +1,18 @@
+table: ready.promo_calendar
+version: 1
+owner: Head of Merchandising
+purpose: [replenishment, analytics, pricing]
+classification: internal
+source: clean.prices where kind = promo
+description: Promotion windows, known in advance (so a promotion-active feature is not leakage). trust = low before
+  the Week 1 cut-over (E21).
+columns:
+  sku_id: {type: text, required: true}
+  location_id: {type: text, required: true}
+  start_date: {type: date, required: true}
+  end_date: {type: date, required: true}
+  price: {type: int, required: true, min: 1}
+  trust: {type: text, required: true, allowed: [low, high]}
+checks:
+  unique: [sku_id, location_id, start_date]
+changes: add columns only; renaming or removing a column needs a new version

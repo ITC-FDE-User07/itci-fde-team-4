@@ -1,0 +1,9 @@
+﻿Week 2 automated test results
+Run started: 2026-11-27 11:58:15 -02:00
+Results directory: C:\FDE_Work\Development\itci-fde-team-4\Test results\20261127-115815-090
+
+vastra-modern-api: PASSED (exit code 0; log: vastra-modern-api.log)
+vastra-data-platform: PASSED (exit code 0; log: vastra-data-platform.log)
+vastra-ml-p2: PASSED (exit code 0; log: vastra-ml-p2.log)
+
+Suites failed: 0 of 3

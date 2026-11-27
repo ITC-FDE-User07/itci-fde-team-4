@@ -1,0 +1,6 @@
+# Every 15 minutes: load new records, rebuild clean and ready (ready.stock_position promises 15-minute freshness)
+*/15 * * * * cd /path/to/FDE_Project_Codebase/vastra-data-platform && ../.venv/bin/python -m vastra_data pipeline >> data/pipeline.log 2>&1
+# 06:00 IST every day: the P2 daily risk list (data up to 05:59). Server clock in UTC: 00:30.
+30 0 * * * cd /path/to/FDE_Project_Codebase/vastra-ml-p2 && ../.venv/bin/python -m vastra_p2 daily-list >> out/daily.log 2>&1
+# Sunday 02:00 IST: retrain weekly, not daily (sustainability). The gate decides again.
+30 20 * * 6 cd /path/to/FDE_Project_Codebase/vastra-ml-p2 && ../.venv/bin/python -m vastra_p2 contest >> out/contest.log 2>&1

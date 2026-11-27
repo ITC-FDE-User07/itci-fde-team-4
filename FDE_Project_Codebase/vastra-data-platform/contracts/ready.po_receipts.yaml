@@ -1,0 +1,22 @@
+table: ready.po_receipts
+version: 1
+owner: Head of Supply Chain
+purpose: [replenishment, analytics]
+classification: confidential
+source: clean.purchase_orders joined to clean.goods_receipts
+description: One row per purchase order with its receipt date. lead_time_filled = 1 when ERP had no lead time and the
+  supplier median was used.
+columns:
+  po_id: {type: text, required: true}
+  sku_id: {type: text, required: true}
+  location_id: {type: text, required: true}
+  supplier_id: {type: text}
+  qty: {type: int, required: true, min: 1}
+  raised_date: {type: date, required: true}
+  expected_date: {type: date}
+  received_date: {type: date}
+  lead_time_days: {type: int, min: 0}
+  lead_time_filled: {type: int, required: true, allowed: [0, 1]}
+checks:
+  unique: [po_id]
+changes: add columns only; renaming or removing a column needs a new version

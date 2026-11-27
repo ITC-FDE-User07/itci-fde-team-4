@@ -1,0 +1,16 @@
+table: ready.store_master
+version: 1
+owner: Head of Retail Operations
+purpose: [replenishment, stock_visibility, analytics]
+classification: internal
+source: clean.stores (ERP store master)
+description: One row per store with its tier and region (used for fairness reporting per tier).
+columns:
+  location_id: {type: text, required: true}
+  tier: {type: text, required: true, allowed: [metro, tier-2, tier-3]}
+  region: {type: text, required: true, allowed: [North, South, East, West]}
+  city: {type: text}
+  opened_on: {type: date, required: true}
+checks:
+  unique: [location_id]
+changes: add columns only; renaming or removing a column needs a new version

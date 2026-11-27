@@ -1,0 +1,7 @@
+-e ../vastra-data-platform
+scikit-learn>=1.4
+pandas>=2.2,<4
+matplotlib>=3.8
+PyYAML>=6.0
+pytest>=8.0
+jupyter>=1.0

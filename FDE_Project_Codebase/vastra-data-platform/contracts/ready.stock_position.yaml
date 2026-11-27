@@ -1,0 +1,19 @@
+# A data contract is a promise about a table: what it contains, who owns it, how fresh it is, what it may be used for.
+table: ready.stock_position
+version: 1
+owner: Head of Supply Chain
+purpose: [replenishment, stock_visibility, analytics]
+classification: internal
+source: rebuilt from clean.sales_lines, clean.goods_receipts, clean.stock_movements, anchored to WMS counts
+description: End-of-day stock per SKU and store (IST day end, stored in UTC), plus one current snapshot per build.
+columns:
+  snapshot_at: {type: timestamp, timezone: UTC, required: true}
+  sku_id: {type: text, required: true}
+  location_id: {type: text, required: true}
+  available: {type: int, min: 0}
+  on_order: {type: int, min: 0}
+checks:
+  unique: [snapshot_at, sku_id, location_id]
+  fresh_within: 15 minutes
+  fresh_column: snapshot_at
+changes: add columns only; renaming or removing a column needs a new version
