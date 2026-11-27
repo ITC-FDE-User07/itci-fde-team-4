@@ -1,5 +1,20 @@
 # ITC FDE Team 4
 
+## Run the Week 2 automated tests (Windows PowerShell)
+
+From the repository root, run the script that follows Step 4 of the Week 2 solution guide:
+
+```powershell
+.\FDE_Project_Codebase\tools\run_week2_tests.ps1
+```
+
+It runs `python -m pytest -q` from each of `vastra-modern-api`, `vastra-data-platform`, and
+`vastra-ml-p2`. The script prefers each package's `.venv`, then the shared
+`FDE_Project_Codebase\.venv`, the repository `.venv`, and finally Python on `PATH`. Install the
+dependencies from the guide before running it. Each run stores one log per package and a
+`summary.txt` under a timestamped subfolder in `Test results`. The script runs the remaining
+suites if one fails and returns a non-zero exit code if any suite fails.
+
 ## Run the Vastra services in local Docker containers (Windows PowerShell)
 
 Install and start Docker Desktop, then from the repository root run:

@@ -2,6 +2,16 @@
 
 Updated: 2026-11-26
 
+## Week 2 automated tests
+
+The root README documents the Week 2 Step 4 runner:
+`FDE_Project_Codebase/tools/run_week2_tests.ps1`. Run it from the repository root in Windows
+PowerShell. It runs pytest for the modern API, data platform, and ML P2 packages, saving
+timestamped logs and a summary under the root `Test results` folder.
+
+Latest verified run: modern API **24 passed**, data platform **19 passed**, and ML P2 **8 passed**.
+The result logs are local test output and are not part of this handoff update.
+
 ## Goal and current state
 
 The workspace contains a runnable legacy ecommerce lab and a separate Vastra API v1 service.
